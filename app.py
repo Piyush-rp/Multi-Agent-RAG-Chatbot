@@ -114,10 +114,6 @@ def add_document(uploaded) -> str:
 # --------------------------------------------------------------------------
 with st.sidebar:
     st.header("📄 Documents")
-    st.caption("Upload PDFs, Word files, text or Markdown, even ones with thousands "
-               "of pages. Reading is fast; embedding runs on a free CPU at roughly "
-               "10 chunks/s, so a 1,000-page PDF takes several minutes. Your uploads "
-               "are private to this browser session.")
 
     with st.form("upload", clear_on_submit=True):
         files = st.file_uploader(
