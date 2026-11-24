@@ -1,3 +1,7 @@
+# CPU-only PyTorch (sentence-transformers doesn't need CUDA; the default
+# wheel pulls ~2GB of GPU libraries, too heavy for free hosting).
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
 langgraph>=0.2.0
 langchain>=0.3.0
 langchain-core>=0.3.0

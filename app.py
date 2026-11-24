@@ -24,9 +24,18 @@ if "history" not in st.session_state:
 
 doc_count = st.session_state.vector_store.count()
 if doc_count == 0:
+    # Hosted deployments (e.g. Streamlit Community Cloud) have no separate
+    # build step to run ingest.py, so index sample_docs/ on first load.
+    from ingest import load_documents
+    docs = load_documents(Config.SAMPLE_DOCS_DIR)
+    if docs:
+        with st.spinner("Indexing sample documents into the knowledge base..."):
+            st.session_state.vector_store.ingest_documents(docs)
+        doc_count = st.session_state.vector_store.count()
+if doc_count == 0:
     st.warning(
-        "The vector store is empty. Run `python ingest.py` first to load "
-        "sample_docs/ into the knowledge base."
+        "The vector store is empty. Add .txt files to sample_docs/ and run "
+        "`python ingest.py` to load them into the knowledge base."
     )
 
 tab_chat, tab_gaps = st.tabs(["Ask a question", "Knowledge gap report"])
