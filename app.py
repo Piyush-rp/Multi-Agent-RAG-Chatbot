@@ -84,7 +84,9 @@ def sample_store() -> VectorStore:
     """The sample PDF, embedded once per server process. Adding it to a
     session copies these precomputed embeddings instead of re-embedding."""
     VectorStore.prune_sessions()
-    store = VectorStore("base_samples")
+    # Bump the version when parsing/chunking changes, so a running server
+    # re-embeds the sample instead of reusing its cached copy.
+    store = VectorStore("base_samples_v2")
     store.reset()
     ingest_directory(store, Config.SAMPLE_DOCS_DIR)
     return store
