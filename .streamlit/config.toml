@@ -3,4 +3,4 @@
 maxUploadSize = 200
 
 [theme]
-primaryColor = "#3b6fd4"
+base = "dark"
