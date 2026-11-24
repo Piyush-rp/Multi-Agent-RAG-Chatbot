@@ -17,15 +17,17 @@ Rank Fusion), and a **Streamlit** dashboard.
 
 ## Try it
 
-1. Open the live demo. The knowledge base starts empty.
-2. In the sidebar, add the **sample document** (a fictional company's
-   employee handbook, 6-page PDF) to the knowledge base, or download it.
-3. Click any of the **sample questions** (this adds the sample document
-   automatically), for example:
-   - *How many days of paid annual leave do employees get, and how many can be carried forward?*
-   - *What is the daily meal allowance for international travel?*
-4. Or upload your own documents in the sidebar and ask about them. Questions
-   the documents don't cover are logged as knowledge gaps instead of guessed.
+1. Open the live demo. The start page offers two ways in: **upload your own
+   documents**, or **use the sample document** (a fictional company's
+   employee handbook, 6-page PDF, which you can also download).
+2. Ask a question. Typing shows suggested questions about the sample
+   document, for example *"How many days of paid annual leave do employees
+   get?"*; press Enter to ask anything else.
+3. Each answer shows its sources and a confidence score. Click
+   **View context** to open a side panel with the exact passages (file and
+   page) the answer came from.
+4. Questions the documents don't cover are logged as knowledge gaps instead
+   of guessed.
 
 ## Your own documents
 
