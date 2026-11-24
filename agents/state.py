@@ -17,6 +17,7 @@ class AgentState(TypedDict, total=False):
     verdict: str            # confident | uncertain
     verdict_reason: str
     gap_id: int
+    evidence: List[dict]    # supporting excerpts picked by the context agent
     # Each agent appends what it did; the reducer concatenates steps.
     trace: Annotated[List[dict], operator.add]
 

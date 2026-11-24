@@ -12,6 +12,7 @@ point somewhere useful.
 import io
 import os
 import re
+import unicodedata
 from typing import Iterator
 
 SUPPORTED_EXTENSIONS = (".pdf", ".docx", ".txt", ".md")
@@ -19,7 +20,9 @@ PSEUDO_PAGE_CHARS = 3000
 
 
 def _clean(text: str) -> str:
-    text = text.replace("\x00", "")
+    # NFKC turns PDF ligatures ("oﬃce") back into plain letters ("office"),
+    # which matters for both keyword search and embeddings.
+    text = unicodedata.normalize("NFKC", text).replace("\x00", "")
     # Re-join words hyphenated across line breaks, then collapse whitespace.
     text = re.sub(r"(\w)-\n(\w)", r"\1\2", text)
     text = re.sub(r"[ \t]+", " ", text)

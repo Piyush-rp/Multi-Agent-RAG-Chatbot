@@ -24,8 +24,8 @@ Rank Fusion), and a **Streamlit** dashboard.
    document, for example *"How many days of paid annual leave do employees
    get?"*; press Enter to ask anything else.
 3. Each answer shows its sources and a confidence score. Click
-   **View context** to open a side panel with the exact passages (file and
-   page) the answer came from.
+   **View context** to open a side panel with the exact lines (file and
+   page, key lines highlighted) the answer came from.
 4. Questions the documents don't cover are logged as knowledge gaps instead
    of guessed.
 
@@ -67,7 +67,7 @@ A team of specialist agents, wired as a LangGraph `StateGraph` (see `graph.py`):
                  +--direct--> Direct-reply agent ------------------------------> answer
 User query -> Router agent
                  |
-                 +--knowledge_base--> Retriever -> Generator -> Evaluator --confident--> answer
+                 +--knowledge_base--> Retriever -> Generator -> Evaluator --confident--> Context agent -> answer + highlighted source lines
                                          ^                        |
                                          +---- Rewriter <--retry--+  (up to MAX_RETRIES)
                                                                   |
@@ -83,6 +83,7 @@ User query -> Router agent
 | Generator | Samples N grounded answers |
 | Evaluator | Confident only if context was found, the model didn't abstain, and the N answers agree |
 | Rewriter | Reformulates the search query and retries the knowledge base |
+| Context | Picks the exact lines that support a confident answer (sentence-level embedding + word-overlap scoring) for the source panel |
 | Gap logger | Records what the knowledge base is missing (SQLite) and says so plainly |
 | Direct | Greetings / small talk, no lookup |
 
@@ -114,7 +115,7 @@ documents.py       - PDF / DOCX / TXT / MD parsing, page by page
 llm.py             - pluggable LLM backend (mock / Anthropic / OpenAI / Groq)
 confidence.py      - abstention check + answer-agreement confidence scorer
 gap_tracker.py     - SQLite-backed knowledge-gap log
-agents/            - one module per agent (router, knowledge, evaluator, rewriter, gap_logger, direct)
+agents/            - one module per agent (router, knowledge, evaluator, rewriter, context, gap_logger, direct)
 graph.py           - wires the agents into the LangGraph StateGraph
 ingest.py          - CLI to load sample_docs/ into the vector store
 app.py             - Streamlit app (uploads, sample questions, chat, agent trace, gap report)

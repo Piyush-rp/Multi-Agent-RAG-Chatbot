@@ -52,6 +52,10 @@ def test_confident_answer_on_covered_topic():
     assert result["route"] == "knowledge_base"
     assert result["verdict"] == "confident"
     assert result["retrieved"][0]["source"] == "library.txt"
+    # The context agent attaches the supporting lines, with one highlighted.
+    assert result["evidence"] and result["evidence"][0]["source"] == "library.txt"
+    assert any(h for _, h in result["evidence"][0]["lines"])
+    assert any(s["agent"] == "context" for s in result["trace"])
 
 
 def test_typo_is_recovered_by_trigram():

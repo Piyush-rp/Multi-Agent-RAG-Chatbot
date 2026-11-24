@@ -61,9 +61,14 @@ st.markdown("""
     overflow-y: auto;
 }
 .passage {
-    white-space: pre-wrap;
-    font-size: 0.92rem;
-    line-height: 1.5;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+mark.key-line {
+    background: rgba(250, 204, 21, 0.28);
+    color: inherit;
+    padding: 0.05rem 0.15rem;
+    border-radius: 3px;
 }
 .welcome-title { text-align: center; margin-bottom: 0.25rem; }
 .welcome-sub { text-align: center; opacity: 0.8; font-size: 1.1rem; margin-bottom: 2rem; }
@@ -272,7 +277,7 @@ def documents_sidebar():
 
 
 def ask(query: str):
-    with st.spinner("Routing, retrieving, generating, and checking confidence..."):
+    with st.spinner("Routing, retrieving, answering, checking confidence and finding the source lines..."):
         try:
             result = st.session_state.compiled_graph.invoke({"query": query})
         except Exception as exc:
@@ -282,12 +287,12 @@ def ask(query: str):
     st.session_state.history.insert(0, result)
 
 
-def source_summary(result: dict) -> str:
+def source_summary(evidence: list[dict]) -> str:
     pages_by_source: dict[str, set] = {}
-    for r in result["retrieved"]:
-        pages = pages_by_source.setdefault(r["source"], set())
-        if r.get("page"):
-            pages.add(r["page"])
+    for e in evidence:
+        pages = pages_by_source.setdefault(e["source"], set())
+        if e.get("page"):
+            pages.add(e["page"])
     return " · ".join(src + (f" p. {', '.join(str(p) for p in sorted(pg))}" if pg else "")
                       for src, pg in pages_by_source.items())
 
@@ -296,15 +301,15 @@ def answer_card(result: dict):
     with st.container(border=True):
         st.markdown(f"**Q: {result['query']}**")
         st.write(clean_answer(result["final_answer"]))
+        evidence = result.get("evidence") or []
         details = []
-        confident = result.get("verdict") == "confident"
-        if confident and result.get("retrieved"):
-            details.append("Sources: " + source_summary(result))
+        if evidence:
+            details.append("Sources: " + source_summary(evidence))
         if "confidence" in result:
             details.append(f"Confidence: {result['confidence']:.2f}")
         if details:
             st.caption("  ·  ".join(details))
-        if result.get("retrieved"):
+        if evidence:
             is_open = st.session_state.context_for == result["id"]
             label = "Hide context" if is_open else "📄 View context"
             if st.button(label, key=f"ctx_{result['id']}"):
@@ -312,33 +317,26 @@ def answer_card(result: dict):
                 st.rerun()
 
 
-def reflow(text: str) -> str:
-    """Join the hard line breaks PDFs put at the end of every visual line,
-    keeping paragraph breaks and numbered section headings."""
-    text = re.sub(r"\n(?=\d+\.\s+[A-Z])", "\n\n", text)
-    return re.sub(r"(?<!\n)\n(?!\n)", " ", text)
+def _html_line(text: str, highlighted: bool) -> str:
+    text = html.escape(text)
+    return f"<mark class='key-line'>{text}</mark>" if highlighted else text
 
 
 def context_panel(result: dict):
+    """Supporting excerpts picked by the context agent, key lines highlighted."""
     with st.container(border=True, key="context_panel"):
         head, close = st.columns([5, 1], vertical_alignment="center")
-        head.markdown("##### 📄 Source passages")
+        head.markdown("##### 📄 Where this answer came from")
         if close.button("✕", key="close_context", help="Close"):
             st.session_state.context_for = None
             st.rerun()
         st.caption(f"Q: {result['query']}")
-        if result.get("verdict") != "confident":
-            st.info("The agent wasn't confident these passages answer the question; "
-                    "they are the closest matches it found.")
-        for i, r in enumerate(result["retrieved"], start=1):
-            page = f" · page {r['page']}" if r.get("page") else ""
+        for e in result["evidence"]:
+            page = f" · page {e['page']}" if e.get("page") else ""
             with st.container(border=True):
-                st.markdown(f"**{i}. {r['source']}{page}**")
-                passage = html.escape(reflow(r["text"]))
-                # Stop Markdown turning "3. Leave Policy" into a list item.
-                passage = re.sub(r"(^|\n)(\d+)\. ", r"\1\2&#46; ", passage)
-                st.markdown(f"<div class='passage'>{passage}</div>",
-                            unsafe_allow_html=True)
+                st.markdown(f"**{e['source']}{page}**")
+                excerpt = " ".join(_html_line(t, h) for t, h in e["lines"])
+                st.markdown(f"<div class='passage'>{excerpt}</div>", unsafe_allow_html=True)
 
 
 def chat_page():

@@ -4,7 +4,7 @@ agents (see agents/) into one multi-agent workflow.
 
 Graph shape:
 
-    router --knowledge_base--> retrieve -> generate -> evaluate --confident--> END
+    router --knowledge_base--> retrieve -> generate -> evaluate --confident--> context -> END
        |                          ^                       |
        |                          +------ rewrite <--retry+
        |                                                  |
@@ -18,10 +18,12 @@ Graph shape:
 - generate: N grounded answer samples
 - evaluate: answer-agreement + abstention check -> confident / uncertain
 - rewrite:  reformulates the search query, up to MAX_RETRIES times
+- context:  picks the exact lines that support a confident answer
 - log_gap:  records what the knowledge base is missing and says so plainly
 """
 from langgraph.graph import StateGraph, END
 
+from agents.context import context_node
 from agents.direct import make_direct_node
 from agents.evaluator import evaluate_node, make_route_after_evaluation
 from agents.gap_logger import log_gap_node
@@ -45,6 +47,7 @@ def build_graph(vector_store: VectorStore = None):
     graph.add_node("retrieve", make_retrieve_node(retriever))
     graph.add_node("generate", make_generate_node(llm, Config.N_SAMPLES))
     graph.add_node("evaluate", evaluate_node)
+    graph.add_node("context", context_node)
     graph.add_node("rewrite", make_rewrite_node(llm))
     graph.add_node("log_gap", log_gap_node)
     graph.add_node("direct", make_direct_node(llm, retriever.sources))
@@ -60,9 +63,10 @@ def build_graph(vector_store: VectorStore = None):
     graph.add_conditional_edges(
         "evaluate",
         make_route_after_evaluation(Config.MAX_RETRIES),
-        {"confident": END, "retry": "rewrite", "give_up": "log_gap"},
+        {"confident": "context", "retry": "rewrite", "give_up": "log_gap"},
     )
     graph.add_edge("rewrite", "retrieve")
+    graph.add_edge("context", END)
     graph.add_edge("log_gap", END)
     graph.add_edge("direct", END)
 
