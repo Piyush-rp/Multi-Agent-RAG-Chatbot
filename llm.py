@@ -97,13 +97,19 @@ class GroqLLM(_LangChainLLM):
     def __init__(self):
         from langchain_openai import ChatOpenAI
         # Groq's API is OpenAI-compatible: point ChatOpenAI at its base_url.
-        self._model = ChatOpenAI(
+        kwargs = dict(
             model=Config.GROQ_MODEL,
             api_key=Config.GROQ_API_KEY,
             base_url="https://api.groq.com/openai/v1",
             temperature=0.7,
             max_tokens=400,
         )
+        if "gpt-oss" in Config.GROQ_MODEL:
+            # gpt-oss models reason before answering, and reasoning tokens
+            # count against max_tokens: keep reasoning short and leave room
+            # for the answer itself.
+            kwargs.update(reasoning_effort="low", max_tokens=1500)
+        self._model = ChatOpenAI(**kwargs)
 
 
 _llm_singleton = None

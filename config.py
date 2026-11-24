@@ -30,7 +30,7 @@ class Config:
     ANTHROPIC_API_KEY = _env("ANTHROPIC_API_KEY", "")
     OPENAI_API_KEY = _env("OPENAI_API_KEY", "")
     GROQ_API_KEY = _env("GROQ_API_KEY", "")
-    GROQ_MODEL = _env("GROQ_MODEL", "llama-3.3-70b-versatile")
+    GROQ_MODEL = _env("GROQ_MODEL", "openai/gpt-oss-120b")
 
     N_SAMPLES = int(_env("N_SAMPLES", "3"))
     CONFIDENCE_THRESHOLD = float(_env("CONFIDENCE_THRESHOLD", "0.72"))
