@@ -37,9 +37,8 @@ from retrieval import HybridRetriever
 from vectorstore import VectorStore
 
 
-def build_graph(vector_store: VectorStore = None):
-    store = vector_store or VectorStore()
-    retriever = HybridRetriever(store)
+def build_graph(vector_store: VectorStore = None, retriever: HybridRetriever = None):
+    retriever = retriever or HybridRetriever(vector_store or VectorStore())
     llm = get_llm()
 
     graph = StateGraph(AgentState)

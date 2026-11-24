@@ -7,11 +7,14 @@ import uuid
 import streamlit as st
 
 import gap_tracker
+from agents.curator import curate, support_text
 from config import Config
 from documents import SUPPORTED_EXTENSIONS, count_pages, iter_pages
 from graph import build_graph
 from ingest import ingest_directory
-from vectorstore import SESSION_PREFIX, VectorStore
+from llm import get_llm
+from retrieval import HybridRetriever
+from vectorstore import LEARNED_SOURCE, SESSION_PREFIX, VectorStore
 
 APP_NAME = "Multi-Agent Chatbot"
 SAMPLE_PDF = "lumora_employee_handbook.pdf"
@@ -93,8 +96,10 @@ def sample_store() -> VectorStore:
 
 
 def new_session():
-    """Each browser session gets its own empty knowledge base."""
+    """Each browser session gets its own knowledge base, which starts with
+    only the answers users have taught for past knowledge gaps."""
     st.session_state.vector_store = VectorStore(f"{SESSION_PREFIX}{uuid.uuid4().hex}")
+    st.session_state.vector_store.upsert_learned(gap_tracker.list_learned_answers())
     st.session_state.history = []
     st.session_state.context_for = None
     st.session_state.page = "welcome"
@@ -102,7 +107,9 @@ def new_session():
 
 
 def rebuild_graph():
-    st.session_state.compiled_graph = build_graph(st.session_state.vector_store)
+    # The curator agent searches with the same retriever as the graph.
+    st.session_state.retriever = HybridRetriever(st.session_state.vector_store)
+    st.session_state.compiled_graph = build_graph(retriever=st.session_state.retriever)
 
 
 def add_sample_document():
@@ -111,7 +118,11 @@ def add_sample_document():
 
 
 if "vector_store" not in st.session_state:
-    new_session()
+    # The first session after a server start loads the embedding model,
+    # which can take up to a minute on Windows; say so instead of showing
+    # a blank page.
+    with st.spinner("Loading the AI models... the first start can take up to a minute."):
+        new_session()
 
 store: VectorStore = st.session_state.vector_store
 
@@ -264,6 +275,11 @@ def documents_sidebar():
             st.subheader("In the knowledge base")
             for source, info in sources.items():
                 col_name, col_btn = st.columns([3, 2])
+                if source == LEARNED_SOURCE:
+                    col_name.markdown(f"**{source}**  \n<small>{info['chunks']:,} taught "
+                                      f"answers</small>", unsafe_allow_html=True)
+                    col_btn.caption("Manage in the gap report")
+                    continue
                 pages = f"{info['pages']:,} pages · " if info["pages"] else ""
                 col_name.markdown(f"**{source}**  \n<small>{pages}{info['chunks']:,} chunks</small>",
                                   unsafe_allow_html=True)
@@ -299,6 +315,70 @@ def source_summary(evidence: list[dict]) -> str:
                       for src, pg in pages_by_source.items())
 
 
+VERDICT_LABELS = {
+    "supported": ("✅", "The documents support this answer."),
+    "not_in_documents": ("ℹ️", "The documents don't mention this; it will be saved as your answer."),
+    "contradicted": ("⚠️", "The documents seem to say something different. Check before saving."),
+}
+
+
+def teach_widget(gap_id: int, question: str, key: str):
+    """Let the user say what the answer should have been. The curator agent
+    rewrites it and checks it against the documents; the user reviews the
+    result before it is saved to the knowledge base."""
+    draft_key = f"draft_{gap_id}"
+    draft = st.session_state.get(draft_key)
+
+    if draft is None:
+        with st.form(f"teach_{key}_{gap_id}", border=False):
+            user_input = st.text_area(
+                "What should the answer have been?",
+                placeholder="Type the answer, or a hint like 'see section 4: it is 30 days'",
+                key=f"teach_text_{key}_{gap_id}",
+            )
+            submitted = st.form_submit_button("Check with AI", type="primary")
+        if submitted:
+            if not user_input.strip():
+                st.warning("Type an answer first.")
+                return
+            with st.spinner("The curator agent is checking your answer against the documents..."):
+                try:
+                    draft = curate(question, user_input, st.session_state.retriever, get_llm())
+                except Exception as exc:
+                    st.error(f"Couldn't check the answer: {exc}")
+                    return
+            st.session_state[draft_key] = {**draft, "user_input": user_input}
+            st.rerun()
+        return
+
+    icon, meaning = VERDICT_LABELS[draft["verdict"]]
+    st.markdown(f"**Answer to save:** {draft['answer']}")
+    st.caption(f"{icon} {meaning} {draft['note']}")
+    for e in draft["evidence"]:
+        page = f" · page {e['page']}" if e.get("page") else ""
+        excerpt = " ".join(_html_line(t, h) for t, h in e["lines"])
+        st.markdown(f"<div class='passage'><b>{html.escape(e['source'])}{page}</b>: {excerpt}</div>",
+                    unsafe_allow_html=True)
+
+    save_label = "Save anyway" if draft["verdict"] == "contradicted" else "Save to knowledge base"
+    col_save, col_discard = st.columns(2)
+    if col_save.button(save_label, type="primary", key=f"save_{key}_{gap_id}",
+                       use_container_width=True):
+        support = support_text(draft["evidence"])
+        gap_tracker.save_learned_answer(gap_id, question, draft["user_input"], draft["answer"],
+                                        draft["verdict"], draft["note"], support)
+        store.upsert_learned([{"gap_id": gap_id, "question": question,
+                               "answer": draft["answer"], "support": support}])
+        rebuild_graph()
+        st.session_state.pop(draft_key)
+        st.session_state.setdefault("taught", set()).add(gap_id)
+        st.toast("Saved. Ask the question again to get this answer.", icon="✅")
+        st.rerun()
+    if col_discard.button("Discard", key=f"discard_{key}_{gap_id}", use_container_width=True):
+        st.session_state.pop(draft_key)
+        st.rerun()
+
+
 def answer_card(result: dict):
     with st.container(border=True):
         st.markdown(f"**Q: {result['query']}**")
@@ -311,6 +391,16 @@ def answer_card(result: dict):
             details.append(f"Confidence: {result['confidence']:.2f}")
         if details:
             st.caption("  ·  ".join(details))
+        gap_id = result.get("gap_id")
+        if gap_id is not None:
+            if gap_id in st.session_state.get("taught", set()):
+                st.success("You taught the answer to this question.")
+                if st.button("🔁 Ask again", key=f"reask_{result['id']}"):
+                    st.session_state.pending_query = result["query"]
+                    st.rerun()
+            else:
+                with st.expander("✍️ Know the answer? Teach it"):
+                    teach_widget(gap_id, result["query"], key="chat")
         if evidence:
             is_open = st.session_state.context_for == result["id"]
             label = "Hide context" if is_open else "📄 View context"
@@ -427,7 +517,18 @@ def chat_page():
                 st.markdown(f"**Query:** {gap['query']}")
                 st.markdown(f"Confidence: `{gap['confidence']:.2f}`  ·  Logged: {gap['created_at']}")
                 st.text(gap["best_answer"])
-                if not gap["resolved"]:
+                if gap["learned_answer"]:
+                    icon, _ = VERDICT_LABELS.get(gap["learned_verdict"], ("", ""))
+                    st.markdown(f"**Taught answer:** {gap['learned_answer']} {icon}")
+                    if st.button("Forget this answer", key=f"forget_{gap['id']}"):
+                        gap_tracker.forget_learned_answer(gap["id"])
+                        store.delete_learned(gap["id"])
+                        st.session_state.get("taught", set()).discard(gap["id"])
+                        rebuild_graph()
+                        st.rerun()
+                elif not gap["resolved"]:
+                    with st.expander("✍️ Teach the answer"):
+                        teach_widget(gap["id"], gap["query"], key="report")
                     if st.button("Mark as resolved", key=f"resolve_{gap['id']}"):
                         gap_tracker.mark_resolved(gap["id"])
                         st.rerun()

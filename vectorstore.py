@@ -17,6 +17,19 @@ from embeddings import get_embedder
 # also lets the UI report progress on very large documents.
 BATCH_SIZE = 256
 SESSION_PREFIX = "session_"
+# Source name for answers users taught to fill knowledge gaps.
+LEARNED_SOURCE = "Learned answers"
+
+
+def learned_text(entry: dict) -> str:
+    """The stored text of a learned answer. The answer comes first (it is
+    what the generator should use); the question is included so the same
+    question retrieves it again, and any supporting passage the curator
+    agent found in the documents is kept alongside it."""
+    text = f"{entry['answer']}\n\nQuestion this answers: {entry['question']}"
+    if entry.get("support"):
+        text += f"\n\nSupporting passage: {entry['support']}"
+    return text
 
 
 def _chunk_text(text: str, chunk_size: int = None, overlap: int = None):
@@ -129,6 +142,19 @@ class VectorStore:
                 embeddings=data["embeddings"][start:end],
             )
         return len(ids)
+
+    def upsert_learned(self, entries: list[dict]) -> int:
+        """Add (or update) learned answers, one chunk each, keyed by gap id."""
+        if not entries:
+            return 0
+        ids = [f"learned::{e['gap_id']}" for e in entries]
+        docs = [learned_text(e) for e in entries]
+        metas = [{"source": LEARNED_SOURCE, "gap_id": int(e["gap_id"]), "chunk_index": 0}
+                 for e in entries]
+        return self._upsert_batched(ids, docs, metas)
+
+    def delete_learned(self, gap_id: int):
+        self._collection.delete(ids=[f"learned::{gap_id}"])
 
     def delete_source(self, source: str):
         self._collection.delete(where={"source": source})
