@@ -11,6 +11,8 @@ class Config:
 
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+    GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
     N_SAMPLES = int(os.getenv("N_SAMPLES", "3"))
     CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.72"))
@@ -48,4 +50,8 @@ class Config:
         if cls.LLM_PROVIDER == "openai" and not cls.OPENAI_API_KEY:
             raise ValueError(
                 "LLM_PROVIDER=openai requires OPENAI_API_KEY to be set in .env"
+            )
+        if cls.LLM_PROVIDER == "groq" and not cls.GROQ_API_KEY:
+            raise ValueError(
+                "LLM_PROVIDER=groq requires GROQ_API_KEY to be set in .env"
             )

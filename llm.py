@@ -14,6 +14,9 @@ Every backend exposes two calls:
 - "anthropic": Claude via langchain-anthropic. Requires ANTHROPIC_API_KEY.
 
 - "openai": GPT via langchain-openai. Requires OPENAI_API_KEY.
+
+- "groq": Llama (or any Groq-hosted model) via Groq's OpenAI-compatible
+  API. Requires GROQ_API_KEY. Free tier available at console.groq.com.
 """
 import random
 from config import Config
@@ -86,6 +89,19 @@ class OpenAILLM(_LangChainLLM):
         )
 
 
+class GroqLLM(_LangChainLLM):
+    def __init__(self):
+        from langchain_openai import ChatOpenAI
+        # Groq's API is OpenAI-compatible: point ChatOpenAI at its base_url.
+        self._model = ChatOpenAI(
+            model=Config.GROQ_MODEL,
+            api_key=Config.GROQ_API_KEY,
+            base_url="https://api.groq.com/openai/v1",
+            temperature=0.7,
+            max_tokens=400,
+        )
+
+
 _llm_singleton = None
 
 
@@ -101,6 +117,8 @@ def get_llm():
         _llm_singleton = AnthropicLLM()
     elif provider == "openai":
         _llm_singleton = OpenAILLM()
+    elif provider == "groq":
+        _llm_singleton = GroqLLM()
     else:
         raise ValueError(f"Unknown LLM_PROVIDER: {provider}")
     return _llm_singleton
