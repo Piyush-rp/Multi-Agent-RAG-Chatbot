@@ -1,4 +1,10 @@
-# Self-Improving Knowledge-Gap-Aware RAG Agent
+# Multi-Agent Chatbot
+
+**Live demo:** https://multi-agent-rag-chatbot-piyushrp.streamlit.app/
+
+A self-improving, knowledge-gap-aware RAG chatbot built from a team of
+specialist agents. Upload your own documents (PDFs with thousands of pages
+included) and ask questions; answers cite the file and page they came from.
 
 A Retrieval-Augmented Generation system that monitors its own confidence.
 When it doesn't know something, it doesn't guess — it logs the gap, tries a
@@ -8,6 +14,32 @@ Built with **LangGraph** (multi-agent orchestration), **LangChain**
 (LLM wrappers), **hybrid retrieval** (dense sentence-transformer embeddings
 in Chroma + BM25 + character-trigram fuzzy matching, fused with Reciprocal
 Rank Fusion), and a **Streamlit** dashboard.
+
+## Try it
+
+1. Open the live demo. It comes preloaded with a sample PDF (a fictional
+   company's employee handbook) and three short campus policy documents.
+2. Click any of the **sample questions**, for example:
+   - *How many days of paid annual leave do employees get, and how many can be carried forward?*
+   - *What is the daily meal allowance for international travel?*
+   - *What are the library opening hours on weekends?*
+   - *Who won the 2022 FIFA World Cup?* (not in the documents, so it's logged as a
+     knowledge gap and answered from the web)
+3. Upload your own documents in the sidebar and ask about them.
+
+## Your own documents
+
+- **Formats:** PDF, DOCX, TXT and Markdown, up to 200 MB per file.
+- **Large files:** PDFs are parsed page by page with PyMuPDF (a 1,000-page
+  PDF reads in seconds), chunked within page boundaries and embedded in
+  batches with a progress bar. BM25 and trigram search use inverted
+  indexes, so queries stay fast with tens of thousands of chunks.
+- **Citations:** every chunk keeps its page number, and answers list their
+  sources as `file.pdf p. 12`.
+- **Privacy:** each browser session gets its own knowledge base, so one
+  visitor's uploads never show up in another's answers. Session data is
+  cleaned up after 12 hours.
+- Scanned PDFs (images with no text layer) need OCR before uploading.
 
 ## Why this is different from a standard RAG chatbot
 
@@ -78,15 +110,17 @@ config.py          - environment/config loading
 embeddings.py      - sentence-transformers embeddings
 lexical.py         - BM25 and trigram indexes (pure Python)
 retrieval.py       - hybrid retriever + Reciprocal Rank Fusion
-vectorstore.py     - Chroma wrapper: ingest + dense search
-llm.py             - pluggable LLM backend (mock / Anthropic Claude / OpenAI)
+vectorstore.py     - Chroma wrapper: batched page-aware ingest + dense search
+documents.py       - PDF / DOCX / TXT / MD parsing, page by page
+llm.py             - pluggable LLM backend (mock / Anthropic / OpenAI / Groq)
 confidence.py      - abstention check + answer-agreement confidence scorer
 gap_tracker.py     - SQLite-backed knowledge-gap log
-search.py          - live web search (DuckDuckGo)
+search.py          - live web search (ddgs, with backend fallbacks)
 agents/            - one module per agent (router, knowledge, evaluator, rewriter, gap_logger, web, direct)
 graph.py           - wires the agents into the LangGraph StateGraph
 ingest.py          - CLI to load sample_docs/ into the vector store
-app.py             - Streamlit dashboard (chat + agent trace + gap report)
+app.py             - Streamlit app (uploads, sample questions, chat, agent trace, gap report)
+scripts/make_sample_pdf.py - regenerates the sample employee-handbook PDF
 tests/test_retrieval.py   - BM25 / trigram / RRF unit tests (no downloads)
 tests/test_graph_smoke.py - end-to-end multi-agent test with the mock LLM
 ```
@@ -105,8 +139,8 @@ streamlit run app.py
 
 **Production mode**
 ```bash
-export LLM_PROVIDER=anthropic        # or: openai
-export ANTHROPIC_API_KEY=sk-ant-...  # or OPENAI_API_KEY
+export LLM_PROVIDER=groq             # or: anthropic, openai
+export GROQ_API_KEY=gsk_...          # or ANTHROPIC_API_KEY / OPENAI_API_KEY
 python ingest.py
 streamlit run app.py
 ```

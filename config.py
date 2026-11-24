@@ -54,6 +54,10 @@ class Config:
     WEIGHT_BM25 = float(_env("WEIGHT_BM25", "1.0"))
     WEIGHT_TRIGRAM = float(_env("WEIGHT_TRIGRAM", "0.5"))
 
+    # Chunking: ~800 characters fits all-MiniLM-L6-v2's 256-token window.
+    CHUNK_SIZE = int(_env("CHUNK_SIZE", "800"))
+    CHUNK_OVERLAP = int(_env("CHUNK_OVERLAP", "120"))
+
     CHROMA_DIR = _env("CHROMA_DIR", "./data/chroma")
     GAP_DB_PATH = _env("GAP_DB_PATH", "./data/gaps.db")
 

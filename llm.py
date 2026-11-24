@@ -19,13 +19,16 @@ Every backend exposes two calls:
   API. Requires GROQ_API_KEY. Free tier available at console.groq.com.
 """
 import random
+import re
 from config import Config
 
 
 GROUNDED_PROMPT = (
     "Answer the question using ONLY the provided context. "
     "If the context does not contain the answer, say so plainly "
-    "instead of guessing.\n\n"
+    "instead of guessing. Each context passage starts with its source in "
+    "square brackets, e.g. [handbook.pdf, p. 12]; cite the sources you used "
+    "at the end of your answer in that same format.\n\n"
     "Context:\n{context}\n\nQuestion: {query}\nAnswer:"
 )
 
@@ -47,7 +50,8 @@ class MockLLM:
             ])
             return phrasing
 
-        snippet = context.strip().split("\n")[0][:200]
+        # Drop the "[source, p. N]" label the retriever prefixes to chunks.
+        snippet = re.sub(r"^\[[^\]]*\]\s*", "", context.strip()).split("\n")[0][:200]
         phrasing = random.choice([
             f"Based on the available documents: {snippet}",
             f"According to the knowledge base: {snippet}",

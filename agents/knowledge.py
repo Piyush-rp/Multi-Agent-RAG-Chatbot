@@ -4,6 +4,12 @@ from agents.state import AgentState, step
 from retrieval import HybridRetriever
 
 
+def _label(chunk: dict) -> str:
+    """'[file.pdf, p. 12] ' prefix so the generator can cite its sources."""
+    page = chunk.get("page")
+    return f"[{chunk['source']}{f', p. {page}' if page else ''}] "
+
+
 def make_retrieve_node(retriever: HybridRetriever):
     def retrieve_node(state: AgentState) -> AgentState:
         query = state.get("search_query") or state["query"]
@@ -15,7 +21,7 @@ def make_retrieve_node(retriever: HybridRetriever):
             detail += f" (matched by: {', '.join(found_by)})"
         return {
             "retrieved": results,
-            "context": "\n\n".join(r["text"] for r in results),
+            "context": "\n\n".join(_label(r) + r["text"] for r in results),
             "attempts": attempts,
             "trace": step("retriever", detail),
         }

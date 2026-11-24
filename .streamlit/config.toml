@@ -1,0 +1,6 @@
+[server]
+# Max upload size per file, in MB (large PDFs can run to tens of MB).
+maxUploadSize = 200
+
+[theme]
+primaryColor = "#3b6fd4"

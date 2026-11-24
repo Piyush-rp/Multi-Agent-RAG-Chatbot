@@ -69,6 +69,7 @@ class HybridRetriever:
             out.append({
                 "text": chunk["text"],
                 "source": chunk["source"],
+                "page": chunk.get("page"),
                 "rrf_score": round(rrf, 5),
                 "scores": scores,
             })
