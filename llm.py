@@ -27,8 +27,8 @@ GROUNDED_PROMPT = (
     "Answer the question using ONLY the provided context. "
     "If the context does not contain the answer, say so plainly "
     "instead of guessing. Each context passage starts with its source in "
-    "square brackets, e.g. [handbook.pdf, p. 12]; cite the sources you used "
-    "at the end of your answer in that same format.\n\n"
+    "square brackets; do not mention sources, file names or page numbers "
+    "in your answer (they are shown to the user separately).\n\n"
     "Context:\n{context}\n\nQuestion: {query}\nAnswer:"
 )
 

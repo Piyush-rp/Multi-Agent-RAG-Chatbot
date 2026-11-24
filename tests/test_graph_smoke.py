@@ -85,11 +85,13 @@ def test_router_sends_greeting_to_direct_agent():
     assert "retrieved" not in result
 
 
-def test_router_sends_live_question_to_web_agent():
+def test_out_of_scope_question_is_not_answered_with_a_guess():
     result = app.invoke({"query": "latest news about the Mars mission"})
-    show("live info", result)
-    assert result["route"] == "web"
-    assert "gap_id" not in result  # not a knowledge-base gap
+    show("out of scope", result)
+    assert result["route"] == "knowledge_base"
+    assert result["verdict"] == "uncertain"
+    assert "couldn't find a reliable answer" in result["final_answer"]
+    assert "gap_id" in result
 
 
 if __name__ == "__main__":

@@ -7,8 +7,8 @@ specialist agents. Upload your own documents (PDFs with thousands of pages
 included) and ask questions; answers cite the file and page they came from.
 
 A Retrieval-Augmented Generation system that monitors its own confidence.
-When it doesn't know something, it doesn't guess — it logs the gap, tries a
-live search fallback, and tells you clearly what it's unsure about.
+When it doesn't know something, it doesn't guess — it logs the gap and tells
+you clearly that the documents don't cover it.
 
 Built with **LangGraph** (multi-agent orchestration), **LangChain**
 (LLM wrappers), **hybrid retrieval** (dense sentence-transformer embeddings
@@ -17,15 +17,15 @@ Rank Fusion), and a **Streamlit** dashboard.
 
 ## Try it
 
-1. Open the live demo. It comes preloaded with a sample PDF (a fictional
-   company's employee handbook) and three short campus policy documents.
-2. Click any of the **sample questions**, for example:
+1. Open the live demo. The knowledge base starts empty.
+2. In the sidebar, add the **sample document** (a fictional company's
+   employee handbook, 6-page PDF) to the knowledge base, or download it.
+3. Click any of the **sample questions** (this adds the sample document
+   automatically), for example:
    - *How many days of paid annual leave do employees get, and how many can be carried forward?*
    - *What is the daily meal allowance for international travel?*
-   - *What are the library opening hours on weekends?*
-   - *Who won the 2022 FIFA World Cup?* (not in the documents, so it's logged as a
-     knowledge gap and answered from the web)
-3. Upload your own documents in the sidebar and ask about them.
+4. Or upload your own documents in the sidebar and ask about them. Questions
+   the documents don't cover are logged as knowledge gaps instead of guessed.
 
 ## Your own documents
 
@@ -51,9 +51,8 @@ confidently. This one:
    (a lightweight version of the "semantic entropy" technique used for
    LLM hallucination detection)
 3. If the answers disagree (low confidence), it does **not** present a
-   confident-sounding guess. It logs the query as a "knowledge gap,"
-   optionally tries a live web search, and clearly labels the response
-   as unverified.
+   confident-sounding guess. It logs the query as a "knowledge gap"
+   and tells the user plainly that the documents don't cover it.
 4. A dashboard shows you a running list of what the knowledge base is
    missing — turning a passive Q&A bot into an active knowledge
    maintenance tool.
@@ -65,7 +64,6 @@ A team of specialist agents, wired as a LangGraph `StateGraph` (see `graph.py`):
 ```
                  +--direct--> Direct-reply agent ------------------------------> answer
 User query -> Router agent
-                 +--web-----> Web agent ---------------------------------------> answer
                  |
                  +--knowledge_base--> Retriever -> Generator -> Evaluator --confident--> answer
                                          ^                        |
@@ -73,18 +71,17 @@ User query -> Router agent
                                                                   |
                                                                give up
                                                                   v
-                                                    Gap logger -> Web agent -> flagged answer
+                                                    Gap logger -> "not in the documents" answer
 ```
 
 | Agent | Job |
 |---|---|
-| Router | Picks knowledge base / web / direct reply (LLM, with rule-based fallback) |
+| Router | Picks knowledge base / direct reply (LLM, with rule-based fallback) |
 | Retriever | Hybrid search: dense + BM25 + trigram, fused with RRF |
 | Generator | Samples N grounded answers |
 | Evaluator | Confident only if context was found, the model didn't abstain, and the N answers agree |
 | Rewriter | Reformulates the search query and retries the knowledge base |
-| Gap logger | Records what the knowledge base is missing (SQLite) |
-| Web agent | Answers from live web search, flagged as unverified on fallback |
+| Gap logger | Records what the knowledge base is missing (SQLite) and says so plainly |
 | Direct | Greetings / small talk, no lookup |
 
 ### Hybrid retrieval
@@ -93,7 +90,7 @@ Each retriever catches what the others miss:
 
 | Retriever | Good at | Example |
 |---|---|---|
-| Dense (all-MiniLM-L6-v2) | Meaning, paraphrases | "when must I be back in the hostel" -> curfew |
+| Dense (all-MiniLM-L6-v2) | Meaning, paraphrases | "when do I need to be in the office" -> hybrid-work days |
 | BM25 | Exact keywords, numbers, IDs | "rule 6", "48 hours" |
 | Trigram (pg_trgm-style) | Typos, spelling variants | "libary", "atendance" |
 
@@ -115,8 +112,7 @@ documents.py       - PDF / DOCX / TXT / MD parsing, page by page
 llm.py             - pluggable LLM backend (mock / Anthropic / OpenAI / Groq)
 confidence.py      - abstention check + answer-agreement confidence scorer
 gap_tracker.py     - SQLite-backed knowledge-gap log
-search.py          - live web search (ddgs, with backend fallbacks)
-agents/            - one module per agent (router, knowledge, evaluator, rewriter, gap_logger, web, direct)
+agents/            - one module per agent (router, knowledge, evaluator, rewriter, gap_logger, direct)
 graph.py           - wires the agents into the LangGraph StateGraph
 ingest.py          - CLI to load sample_docs/ into the vector store
 app.py             - Streamlit app (uploads, sample questions, chat, agent trace, gap report)
@@ -186,9 +182,7 @@ baked into the image, so it starts without downloading anything.
    academic policies, your HAL internship domain, a company's product docs)
 2. Run it for real usage over a week or two, and screenshot the gap report
    — that's your "before/after" evidence for an interview
-3. Swap DuckDuckGo in `search.py` for a more reliable search API
-   (Tavily, SerpAPI)
-4. Add a real confidence threshold calibration step: log confidence scores
+3. Add a real confidence threshold calibration step: log confidence scores
    against human-labeled "was this actually right" judgments, and tune the
    threshold instead of guessing one
 

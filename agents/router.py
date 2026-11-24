@@ -1,7 +1,6 @@
 """Router agent: decides which specialist should handle the question.
 
 - knowledge_base: answerable from the ingested documents (the default)
-- web: needs live / time-sensitive public information
 - direct: greetings and small talk, no lookup needed
 
 Asks the LLM first; if the LLM gives no parseable answer (always the
@@ -10,18 +9,17 @@ case for the mock backend), falls back to simple rules.
 import re
 from agents.state import AgentState, step
 
-ROUTES = ("knowledge_base", "web", "direct")
+ROUTES = ("knowledge_base", "direct")
 
 ROUTER_PROMPT = """You route questions for an assistant backed by an internal knowledge base containing: {topics}.
 
 Choose exactly one route:
-- knowledge_base: the question could be answered from those internal documents.
-- web: the question needs live or general public information (news, current events, prices, weather) clearly outside the internal documents.
+- knowledge_base: any question that asks for information (answered from the internal documents).
 - direct: a greeting, thanks or small talk that needs no information lookup.
 When unsure, choose knowledge_base.
 
 Reply in exactly this format:
-route: <knowledge_base|web|direct>
+route: <knowledge_base|direct>
 reason: <one short sentence>
 
 Question: {query}"""
@@ -30,19 +28,12 @@ _GREETING = re.compile(
     r"^\s*(hi|hello|hey|thanks|thank you|good (morning|afternoon|evening)|bye)\b[\w\s!.,?]{0,20}$",
     re.I,
 )
-_LIVE_INFO = re.compile(
-    r"\b(today|tonight|tomorrow|latest|current(ly)?|news|weather|price|stock|"
-    r"right now|this (week|month|year))\b",
-    re.I,
-)
 
 
 def _rule_based_route(query: str) -> tuple[str, str]:
     if _GREETING.match(query):
         return "direct", "greeting or small talk, no lookup needed"
-    if _LIVE_INFO.search(query):
-        return "web", "asks for live or time-sensitive information"
-    return "knowledge_base", "try the internal knowledge base first"
+    return "knowledge_base", "look it up in the internal knowledge base"
 
 
 def _parse(raw: str) -> tuple[str | None, str]:

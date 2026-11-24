@@ -5,7 +5,7 @@ from typing import Annotated, List, TypedDict
 
 class AgentState(TypedDict, total=False):
     query: str
-    route: str              # knowledge_base | web | direct
+    route: str              # knowledge_base | direct
     route_reason: str
     search_query: str       # query sent to retrieval (rewritten on retries)
     attempts: int           # knowledge-base retrieval attempts so far
@@ -17,8 +17,6 @@ class AgentState(TypedDict, total=False):
     verdict: str            # confident | uncertain
     verdict_reason: str
     gap_id: int
-    web_results: str
-    supplemented: bool
     # Each agent appends what it did; the reducer concatenates steps.
     trace: Annotated[List[dict], operator.add]
 

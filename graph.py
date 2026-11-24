@@ -10,17 +10,15 @@ Graph shape:
        |                                                  |
        |                                               give_up
        |                                                  v
-       |                                               log_gap -> web -> END
-       +--web----------------------------------------------------> web -> END
+       |                                               log_gap -> END
        +--direct--> direct -> END
 
-- router:   picks knowledge_base / web / direct
+- router:   picks knowledge_base / direct
 - retrieve: hybrid search (dense + BM25 + trigram, fused with RRF)
 - generate: N grounded answer samples
 - evaluate: answer-agreement + abstention check -> confident / uncertain
 - rewrite:  reformulates the search query, up to MAX_RETRIES times
-- log_gap:  records what the knowledge base is missing
-- web:      live web search answer (flagged as unverified on fallback)
+- log_gap:  records what the knowledge base is missing and says so plainly
 """
 from langgraph.graph import StateGraph, END
 
@@ -31,7 +29,6 @@ from agents.knowledge import make_generate_node, make_retrieve_node
 from agents.rewriter import make_rewrite_node
 from agents.router import make_router_node, route_from_router
 from agents.state import AgentState
-from agents.web import make_web_node
 from config import Config
 from llm import get_llm
 from retrieval import HybridRetriever
@@ -50,14 +47,13 @@ def build_graph(vector_store: VectorStore = None):
     graph.add_node("evaluate", evaluate_node)
     graph.add_node("rewrite", make_rewrite_node(llm))
     graph.add_node("log_gap", log_gap_node)
-    graph.add_node("web", make_web_node(llm))
     graph.add_node("direct", make_direct_node(llm, retriever.sources))
 
     graph.set_entry_point("router")
     graph.add_conditional_edges(
         "router",
         route_from_router,
-        {"knowledge_base": "retrieve", "web": "web", "direct": "direct"},
+        {"knowledge_base": "retrieve", "direct": "direct"},
     )
     graph.add_edge("retrieve", "generate")
     graph.add_edge("generate", "evaluate")
@@ -67,8 +63,7 @@ def build_graph(vector_store: VectorStore = None):
         {"confident": END, "retry": "rewrite", "give_up": "log_gap"},
     )
     graph.add_edge("rewrite", "retrieve")
-    graph.add_edge("log_gap", "web")
-    graph.add_edge("web", END)
+    graph.add_edge("log_gap", END)
     graph.add_edge("direct", END)
 
     return graph.compile()
